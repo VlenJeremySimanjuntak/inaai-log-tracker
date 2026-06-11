@@ -3,6 +3,8 @@ package repository
 import (
 	"context"
 	"database/sql"
+	"fmt"
+
 	"backend-tracker/internal/models"
 )
 
@@ -13,89 +15,95 @@ type LogRepository interface {
 	UpdateStatus(ctx context.Context, tx *sql.Tx, id int, status string) error
 	SaveAISummary(ctx context.Context, summary *models.AISummary) error
 	GetLatestSummary(ctx context.Context) (*models.AISummary, error)
-	GetDB() *sql.DB // Method baru untuk mengakses koneksi database
+	BeginTx(ctx context.Context) (*sql.Tx, error) // untuk transaksi di usecase
 }
 
-// UBAH: dari mysqlLogRepository menjadi MysqlLogRepository (huruf besar diawal)
-type MysqlLogRepository struct {
-	Conn *sql.DB
+type mysqlLogRepository struct {
+	db *sql.DB
 }
 
-// UBAH: return type mengacu ke struct yang sudah diexport
-func NewMysqlLogRepository(conn *sql.DB) LogRepository {
-	return &MysqlLogRepository{Conn: conn}
+func NewMysqlLogRepository(db *sql.DB) LogRepository {
+	return &mysqlLogRepository{db: db}
 }
 
-// Method baru untuk mengakses DB
-func (m *MysqlLogRepository) GetDB() *sql.DB {
-	return m.Conn
+func (r *mysqlLogRepository) BeginTx(ctx context.Context) (*sql.Tx, error) {
+	return r.db.BeginTx(ctx, nil)
 }
 
-func (m *MysqlLogRepository) FetchAll(ctx context.Context) ([]models.IncidentLog, error) {
+func (r *mysqlLogRepository) FetchAll(ctx context.Context) ([]models.IncidentLog, error) {
 	query := `SELECT id, user_id, category_id, title, description, status, created_at, updated_at FROM incident_logs ORDER BY created_at DESC`
-	rows, err := m.Conn.QueryContext(ctx, query)
+	rows, err := r.db.QueryContext(ctx, query)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("query fetch all: %w", err)
 	}
 	defer rows.Close()
 
-	var list []models.IncidentLog
+	var logs []models.IncidentLog
 	for rows.Next() {
-		var log models.IncidentLog
-		if err := rows.Scan(&log.ID, &log.UserID, &log.CategoryID, &log.Title, &log.Description, &log.Status, &log.CreatedAt, &log.UpdatedAt); err != nil {
-			return nil, err
+		var l models.IncidentLog
+		err := rows.Scan(&l.ID, &l.UserID, &l.CategoryID, &l.Title, &l.Description, &l.Status, &l.CreatedAt, &l.UpdatedAt)
+		if err != nil {
+			return nil, fmt.Errorf("scan row: %w", err)
 		}
-		list = append(list, log)
+		logs = append(logs, l)
 	}
-	return list, nil
+	return logs, nil
 }
 
-func (m *MysqlLogRepository) Create(ctx context.Context, log *models.IncidentLog) error {
+func (r *mysqlLogRepository) Create(ctx context.Context, log *models.IncidentLog) error {
 	query := `INSERT INTO incident_logs (user_id, category_id, title, description, status) VALUES (?, ?, ?, ?, ?)`
-	res, err := m.Conn.ExecContext(ctx, query, log.UserID, log.CategoryID, log.Title, log.Description, log.Status)
+	res, err := r.db.ExecContext(ctx, query, log.UserID, log.CategoryID, log.Title, log.Description, log.Status)
 	if err != nil {
-		return err
+		return fmt.Errorf("insert incident log: %w", err)
 	}
 	id, err := res.LastInsertId()
 	if err != nil {
-		return err
+		return fmt.Errorf("last insert id: %w", err)
 	}
 	log.ID = int(id)
 	return nil
 }
 
-// Implementasi PESSIMISTIC LOCKING: Mengunci baris data spesifik agar tidak diubah proses lain selama transaksi berjalan
-func (m *MysqlLogRepository) GetByIDForUpdate(ctx context.Context, tx *sql.Tx, id int) (*models.IncidentLog, error) {
+func (r *mysqlLogRepository) GetByIDForUpdate(ctx context.Context, tx *sql.Tx, id int) (*models.IncidentLog, error) {
 	query := `SELECT id, user_id, category_id, title, description, status, created_at, updated_at FROM incident_logs WHERE id = ? FOR UPDATE`
-	var log models.IncidentLog
-	err := tx.QueryRowContext(ctx, query, id).Scan(&log.ID, &log.UserID, &log.CategoryID, &log.Title, &log.Description, &log.Status, &log.CreatedAt, &log.UpdatedAt)
+	var l models.IncidentLog
+	err := tx.QueryRowContext(ctx, query, id).Scan(&l.ID, &l.UserID, &l.CategoryID, &l.Title, &l.Description, &l.Status, &l.CreatedAt, &l.UpdatedAt)
 	if err != nil {
-		return nil, err
+		if err == sql.ErrNoRows {
+			return nil, fmt.Errorf("log id %d tidak ditemukan", id)
+		}
+		return nil, fmt.Errorf("select for update: %w", err)
 	}
-	return &log, nil
+	return &l, nil
 }
 
-func (m *MysqlLogRepository) UpdateStatus(ctx context.Context, tx *sql.Tx, id int, status string) error {
+func (r *mysqlLogRepository) UpdateStatus(ctx context.Context, tx *sql.Tx, id int, status string) error {
 	query := `UPDATE incident_logs SET status = ? WHERE id = ?`
 	_, err := tx.ExecContext(ctx, query, status, id)
-	return err
+	if err != nil {
+		return fmt.Errorf("update status: %w", err)
+	}
+	return nil
 }
 
-func (m *MysqlLogRepository) SaveAISummary(ctx context.Context, summary *models.AISummary) error {
+func (r *mysqlLogRepository) SaveAISummary(ctx context.Context, summary *models.AISummary) error {
 	query := `INSERT INTO ai_summaries (summary_text, log_ids_analyzed) VALUES (?, ?)`
-	_, err := m.Conn.ExecContext(ctx, query, summary.SummaryText, summary.LogIDsAnalyzed)
-	return err
+	_, err := r.db.ExecContext(ctx, query, summary.SummaryText, summary.LogIDsAnalyzed)
+	if err != nil {
+		return fmt.Errorf("save AI summary: %w", err)
+	}
+	return nil
 }
 
-func (m *MysqlLogRepository) GetLatestSummary(ctx context.Context) (*models.AISummary, error) {
+func (r *mysqlLogRepository) GetLatestSummary(ctx context.Context) (*models.AISummary, error) {
 	query := `SELECT id, summary_text, log_ids_analyzed, created_at FROM ai_summaries ORDER BY created_at DESC LIMIT 1`
-	var summary models.AISummary
-	err := m.Conn.QueryRowContext(ctx, query).Scan(&summary.ID, &summary.SummaryText, &summary.LogIDsAnalyzed, &summary.CreatedAt)
+	var s models.AISummary
+	err := r.db.QueryRowContext(ctx, query).Scan(&s.ID, &s.SummaryText, &s.LogIDsAnalyzed, &s.CreatedAt)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, nil
 		}
-		return nil, err
+		return nil, fmt.Errorf("get latest summary: %w", err)
 	}
-	return &summary, nil
-}
+	return &s, nil
+}	
