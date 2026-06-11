@@ -1,15 +1,60 @@
-# Dependensi (Paling penting supaya tidak berat)
-node_modules/
+# Binaries
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+main.exe
 
-# Environment file (Sangat sensitif, jangan pernah dishare!)
+# Dependency directories
+vendor/
+
+# Go workspace
+go.work
+go.work.sum
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Environment variables
 .env
+.env.local
+.env.*.local
 
-# Data Docker (Supaya tidak ikut ter-commit)
-mysql_data/
-
-# File log dan system
+# Logs
 *.log
-.DS_Store
+logs/
 
-# Folder hasil build/binary
-backend/tmp/
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# Docker
+*.pid
+
+# Temporary files
+tmp/
+temp/
+
+# Backend binary
+backend/main
+
+# Frontend (jika ada)
+node_modules/
+dist/
+build/
+*.local
+
+# Test coverage
+*.cover
+*.coverprofile
+coverage.html
+
+# Swagger docs (optional, bisa di-commit atau tidak, tapi lebih baik di-commit agar dokumentasi tersedia)
+# docs/   # jika ingin diabaikan, uncomment baris ini

@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"backend-tracker/internal/event"
 	"backend-tracker/internal/models"
 	"backend-tracker/internal/repository"
 )
@@ -23,11 +24,12 @@ type LogUsecase interface {
 }
 
 type logUsecase struct {
-	repo repository.LogRepository
+	repo     repository.LogRepository
+	eventBus *event.Bus
 }
 
-func NewLogUsecase(repo repository.LogRepository) LogUsecase {
-	return &logUsecase{repo: repo}
+func NewLogUsecase(repo repository.LogRepository, eventBus *event.Bus) LogUsecase {
+	return &logUsecase{repo: repo, eventBus: eventBus}
 }
 
 func (u *logUsecase) GetAllLogs(ctx context.Context) ([]models.IncidentLog, error) {
@@ -36,7 +38,18 @@ func (u *logUsecase) GetAllLogs(ctx context.Context) ([]models.IncidentLog, erro
 
 func (u *logUsecase) ReportIncident(ctx context.Context, log *models.IncidentLog) error {
 	log.Status = "Menunggu"
-	return u.repo.Create(ctx, log)
+	err := u.repo.Create(ctx, log)
+	if err == nil {
+		// publish event for new incident
+		u.eventBus.Publish(ctx, event.Event{
+			Type: "log.created",
+			Data: map[string]interface{}{
+				"log_id": log.ID,
+				"title":  log.Title,
+			},
+		})
+	}
+	return err
 }
 
 // changeStatusTx melakukan transaksi dengan pessimistic locking
@@ -62,7 +75,7 @@ func (u *logUsecase) changeStatusTx(ctx context.Context, id int, newStatus strin
 	return tx.Commit()
 }
 
-// ChangeLogStatus dengan retry deadlock
+// ChangeLogStatus dengan retry deadlock dan publish event setelah sukses
 func (u *logUsecase) ChangeLogStatus(ctx context.Context, id int, newStatus string) error {
 	const maxRetries = 3
 	baseDelay := 50 * time.Millisecond
@@ -77,6 +90,16 @@ func (u *logUsecase) ChangeLogStatus(ctx context.Context, id int, newStatus stri
 
 		err := u.changeStatusTx(ctx, id, newStatus)
 		if err == nil {
+			// Publikasikan event setelah sukses update
+			if u.eventBus != nil {
+				u.eventBus.Publish(ctx, event.Event{
+					Type: "log.status.updated",
+					Data: map[string]interface{}{
+						"log_id": id,
+						"status": newStatus,
+					},
+				})
+			}
 			return nil
 		}
 
@@ -91,7 +114,31 @@ func (u *logUsecase) ChangeLogStatus(ctx context.Context, id int, newStatus stri
 	return fmt.Errorf("gagal setelah %d percobaan: %w", maxRetries, lastErr)
 }
 
-// GetOrTriggerAggregateSummary (sama seperti sebelumnya)
+// changeStatusTxWithEvent melakukan transaksi dan mengembalikan old status
+func (u *logUsecase) changeStatusTxWithEvent(ctx context.Context, id int, newStatus string, oldStatusPtr *string) error {
+	tx, err := u.repo.BeginTx(ctx)
+	if err != nil {
+		return fmt.Errorf("begin tx: %w", err)
+	}
+	defer tx.Rollback()
+
+	// Kunci baris dengan FOR UPDATE dan ambil data lama
+	log, err := u.repo.GetByIDForUpdate(ctx, tx, id)
+	if err != nil {
+		return err
+	}
+	*oldStatusPtr = log.Status
+
+	// Update status
+	err = u.repo.UpdateStatus(ctx, tx, id, newStatus)
+	if err != nil {
+		return err
+	}
+
+	return tx.Commit()
+}
+
+// GetOrTriggerAggregateSummary (tidak berubah, tapi bisa subscribe event juga)
 func (u *logUsecase) GetOrTriggerAggregateSummary(ctx context.Context) (*models.AISummary, error) {
 	currentSummary, err := u.repo.GetLatestSummary(ctx)
 	if err != nil {

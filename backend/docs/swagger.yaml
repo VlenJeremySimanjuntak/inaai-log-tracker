@@ -1,0 +1,161 @@
+definitions:
+  models.AISummary:
+    properties:
+      created_at:
+        type: string
+      id:
+        type: integer
+      log_ids_analyzed:
+        description: comma separated, e.g. "1,2,3"
+        type: string
+      summary_text:
+        type: string
+    type: object
+  models.IncidentLog:
+    properties:
+      category_id:
+        type: integer
+      created_at:
+        type: string
+      description:
+        type: string
+      id:
+        type: integer
+      status:
+        description: Menunggu, Diproses, Selesai
+        type: string
+      title:
+        type: string
+      updated_at:
+        type: string
+      user_id:
+        type: integer
+    type: object
+info:
+  contact: {}
+paths:
+  /api/ai-summary:
+    get:
+      description: Mengembalikan ringkasan otomatis dari semua laporan menggunakan
+        Gemini AI. Jika belum ada atau ada laporan baru, akan memicu pembuatan ringkasan
+        baru.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.AISummary'
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Dapatkan ringkasan AI
+      tags:
+      - AI
+  /api/logs:
+    get:
+      description: Mengembalikan daftar semua incident log yang sudah tersimpan, diurutkan
+        dari yang terbaru
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/models.IncidentLog'
+            type: array
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Dapatkan semua laporan gangguan
+      tags:
+      - Logs
+    post:
+      consumes:
+      - application/json
+      description: Menambahkan incident log baru dengan status awal "Menunggu"
+      parameters:
+      - description: Data laporan (user_id, category_id, title, description)
+        in: body
+        name: log
+        required: true
+        schema:
+          $ref: '#/definitions/models.IncidentLog'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/models.IncidentLog'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Buat laporan gangguan baru
+      tags:
+      - Logs
+  /api/logs/{id}/status:
+    put:
+      consumes:
+      - application/json
+      description: Mengubah status incident log (Menunggu, Diproses, Selesai) menggunakan
+        pessimistic locking untuk mencegah race condition.
+      parameters:
+      - description: ID laporan
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Status baru (Menunggu/Diproses/Selesai)
+        in: body
+        name: status
+        required: true
+        schema:
+          type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Ubah status laporan gangguan
+      tags:
+      - Logs
+swagger: "2.0"
