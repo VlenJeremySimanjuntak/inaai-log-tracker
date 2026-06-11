@@ -1,0 +1,15 @@
+# Dependensi (Paling penting supaya tidak berat)
+node_modules/
+
+# Environment file (Sangat sensitif, jangan pernah dishare!)
+.env
+
+# Data Docker (Supaya tidak ikut ter-commit)
+mysql_data/
+
+# File log dan system
+*.log
+.DS_Store
+
+# Folder hasil build/binary
+backend/tmp/

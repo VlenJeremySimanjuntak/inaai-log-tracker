@@ -1,0 +1,42 @@
+services:
+  # 1. Database Service (MySQL)
+  mysql-db:
+    image: mysql:8.0
+    container_name: inai-mysql
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: Vlen2005
+      MYSQL_DATABASE: inai_app
+    ports:
+      - "3307:3306" # 3307 untuk DBeaver, 3306 adalah port internal MySQL
+    volumes:
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-pVlen2005"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  main-backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: inai-go-backend
+    restart: always
+    ports:
+      - "8081:8081"
+    environment:
+      # PENTING: Backend melihat database lewat nama service "mysql-db"
+      # dan menggunakan port INTERNAL (3306), bukan 3307!
+      - DB_MYSQL_HOST=mysql-db
+      - DB_MYSQL_PORT=3306
+      - DB_MYSQL_USER=root
+      - DB_MYSQL_PASSWORD=Vlen2005
+      - DB_MYSQL_NAME=inai_app
+    depends_on:
+      mysql-db:
+        condition: service_healthy
+
+volumes:
+  mysql_data:
