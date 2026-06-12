@@ -1,5 +1,7 @@
+version: '3.8'
+
 services:
-  # 1. Database Service (MySQL)
+  # Database Service
   mysql-db:
     image: mysql:8.0
     container_name: inai-mysql
@@ -8,16 +10,18 @@ services:
       MYSQL_ROOT_PASSWORD: Vlen2005
       MYSQL_DATABASE: inai_app
     ports:
-      - "3307:3306" # 3307 untuk DBeaver, 3306 adalah port internal MySQL
+      - "3307:3306"
     volumes:
-      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
       - mysql_data:/var/lib/mysql
+      # Pastikan file init.sql ada di root folder
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql 
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-pVlen2005"]
       interval: 5s
       timeout: 5s
       retries: 5
 
+  # Backend Service
   main-backend:
     build:
       context: ./backend
@@ -26,22 +30,28 @@ services:
     restart: always
     ports:
       - "8081:8081"
-    env_file:
-      - .env
     environment:
-      # PENTING: Backend melihat database lewat nama service "mysql-db"
-      # dan menggunakan port INTERNAL (3306), bukan 3307!
+      - SERVER_PORT=8081
       - DB_MYSQL_HOST=mysql-db
       - DB_MYSQL_PORT=3306
       - DB_MYSQL_USER=root
       - DB_MYSQL_PASSWORD=Vlen2005
       - DB_MYSQL_NAME=inai_app
-      
       - GEMINI_API_KEY=${GEMINI_API_KEY}
-      
     depends_on:
       mysql-db:
         condition: service_healthy
+
+  # Frontend Service
+  main-frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: inai-react-frontend
+    ports:
+      - "80:80"
+    depends_on:
+      - main-backend
 
 volumes:
   mysql_data:
