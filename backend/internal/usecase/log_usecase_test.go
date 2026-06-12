@@ -172,3 +172,17 @@ func TestChangeLogStatus_ContextTimeout(t *testing.T) {
 	assert.Error(t, err)
 	assert.True(t, errors.Is(err, context.Canceled))
 }
+
+func TestChangeLogStatus_InvalidStatus(t *testing.T) {
+    // Kita tidak perlu setup DB karena validasi terjadi di level Usecase (sebelum ke repo)
+    repo := repository.NewMysqlLogRepository(nil)
+    uc := NewLogUsecase(repo, nil)
+    
+    // Skenario: Status kosong
+    err := uc.ChangeLogStatus(context.Background(), 1, "")
+    
+    // Ekspektasi: Error
+    assert.Error(t, err)
+    assert.Equal(t, "status tidak boleh kosong", err.Error())
+}
+
