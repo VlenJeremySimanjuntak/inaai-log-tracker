@@ -165,9 +165,16 @@ func (u *logUsecase) GetOrTriggerAggregateSummary(ctx context.Context) (*models.
 		}
 		prompt := fmt.Sprintf("Berikan ringkasan eksekutif singkat dalam Bahasa Indonesia mengenai kumpulan laporan gangguan operasional berikut, temukan pola kerusakan utamanya:\n%s", strings.Join(logTexts, "\n"))
 		aiText, err := callGeminiAPIWithContext(ctx, prompt, apiKey)
-		if err != nil {
-			return currentSummary, nil
-		}
+        if err != nil {
+            // JANGAN kembalikan currentSummary dan nil.
+            // Kembalikan objek AISummary dengan teks peringatan agar muncul di layar Admin, 
+            // ATAU lempar error-nya langsung agar kita tahu persis apa masalahnya!
+            
+            errorMsg := fmt.Sprintf("Gagal menghubungi AI Gemini: %v. Pastikan API Key valid.", err)
+            return &models.AISummary{
+                SummaryText: errorMsg,
+            }, nil
+        }
 		newSummary := &models.AISummary{
 			SummaryText:    aiText,
 			LogIDsAnalyzed: joinedIDs,
@@ -179,7 +186,7 @@ func (u *logUsecase) GetOrTriggerAggregateSummary(ctx context.Context) (*models.
 }
 
 func callGeminiAPIWithContext(ctx context.Context, prompt, key string) (string, error) {
-	url := fmt.Sprintf("https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=%s", key)
+	url := fmt.Sprintf("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=%s", key)
 	payload := map[string]interface{}{
 		"contents": []map[string]interface{}{
 			{"parts": []map[string]string{{"text": prompt}}},

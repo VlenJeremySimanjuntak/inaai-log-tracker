@@ -4,7 +4,7 @@ package main
 import (
 	"context"
 	"log"
-	"net/http" // FIX 1: Import net/http yang sebelumnya hilang
+	"net/http"
 	"os"
 	"os/signal"
 	"time"
@@ -17,7 +17,7 @@ import (
 
 	"github.com/joho/godotenv"
 	"github.com/labstack/echo/v4"
-	"github.com/labstack/echo/v4/middleware" // FIX 2: Import middleware untuk CORS
+	"github.com/labstack/echo/v4/middleware"
 	echoSwagger "github.com/swaggo/echo-swagger"
 	_ "backend-tracker/docs"
 )
@@ -33,39 +33,38 @@ func main() {
 	db := config.InitDB()
 	defer db.Close()
 
-	// Inisialisasi event bus dengan 5 worker
 	eventBus := event.NewBus(5)
 	defer eventBus.Stop()
 
-	// Subscribe contoh event
 	eventBus.Subscribe("log.status.updated", func(ctx context.Context, e event.Event) error {
 		log.Printf("📢 Event: log status updated. Data: %v", e.Data)
-		// Di sini bisa ditambahkan notifikasi, audit, atau trigger AI summary
 		return nil
 	})
 
 	logRepo := repository.NewMysqlLogRepository(db)
-	logUsecase := usecase.NewLogUsecase(logRepo, eventBus) // kirim eventBus
+	logUsecase := usecase.NewLogUsecase(logRepo, eventBus)
 
 	e := echo.New()
 
-	// FIX 2: Pasang CORS agar Frontend React tidak diblokir oleh browser
 	e.Use(middleware.CORSWithConfig(middleware.CORSConfig{
-		AllowOrigins: []string{"*"}, // Mengizinkan semua origin (cocok untuk testing lokal)
+		AllowOrigins: []string{"*"},
 		AllowMethods: []string{echo.GET, echo.POST, echo.PUT, echo.DELETE},
 	}))
 
+	// Handler untuk Incident Logs (WAJIB)
 	delivery.NewLogHandler(e, logUsecase)
 
-	// Swagger UI
+	// Handler untuk AI Summary
+	summaryHandler := delivery.NewSummaryHandler(logUsecase)
+	e.GET("/api/summary/latest", summaryHandler.GetLatestSummary)
+
 	e.GET("/swagger/*", echoSwagger.WrapHandler)
 
 	port := os.Getenv("SERVER_PORT")
 	if port == "" {
-		port = "8081" // FIX 3: Default diubah ke 3000 jika kamu menggunakan mapping 8081:3000 di Docker
+		port = "8081"
 	}
 
-	// Graceful shutdown
 	go func() {
 		log.Printf("🚀 Aplikasi Backend Mengetuk Port %s...", port)
 		if err := e.Start(":" + port); err != nil && err != http.ErrServerClosed {
@@ -73,7 +72,6 @@ func main() {
 		}
 	}()
 
-	// Wait for interrupt signal
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, os.Interrupt)
 	<-quit
