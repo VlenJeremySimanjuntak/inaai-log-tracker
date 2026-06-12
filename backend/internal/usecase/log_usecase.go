@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"os"
@@ -77,6 +78,9 @@ func (u *logUsecase) changeStatusTx(ctx context.Context, id int, newStatus strin
 
 // ChangeLogStatus dengan retry deadlock dan publish event setelah sukses
 func (u *logUsecase) ChangeLogStatus(ctx context.Context, id int, newStatus string) error {
+	if newStatus == "" {
+        return errors.New("status tidak boleh kosong")
+    }
 	const maxRetries = 3
 	baseDelay := 50 * time.Millisecond
 
