@@ -37,7 +37,7 @@ CREATE TABLE IF NOT EXISTS ai_summaries (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- Data Awal / Dummy untuk testing
-INSERT INTO users (name, role) VALUES ('Vlen Jeremy', 'Admin'), ('Gilberd', 'Teknisi');
+INSERT INTO users (name, role) VALUES ('Vlen Jeremy', 'Admin'), ('Fery', 'Teknisi'), ('Dina', 'Teknisi'), ('Rizky', 'Teknisi');
 INSERT INTO categories (name) VALUES ('Jaringan & Internet'), ('Server & Database'), ('Aplikasi Internal');
 INSERT INTO incident_logs (user_id, category_id, title, description, status) VALUES 
 (2, 1, 'Koneksi WiFi Drop', 'Access point lantai 2 Gedung Kuliah Utama mati total tidak memancarkan sinyal.', 'Menunggu'),
