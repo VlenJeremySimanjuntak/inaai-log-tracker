@@ -55,6 +55,7 @@ build/
 *.cover
 *.coverprofile
 coverage.html
+.env
 
 # Swagger docs (optional, bisa di-commit atau tidak, tapi lebih baik di-commit agar dokumentasi tersedia)
 # docs/   # jika ingin diabaikan, uncomment baris ini

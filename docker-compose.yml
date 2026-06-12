@@ -34,6 +34,9 @@ services:
       - DB_MYSQL_USER=root
       - DB_MYSQL_PASSWORD=Vlen2005
       - DB_MYSQL_NAME=inai_app
+      
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      
     depends_on:
       mysql-db:
         condition: service_healthy

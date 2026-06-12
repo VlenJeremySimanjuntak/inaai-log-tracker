@@ -4,6 +4,7 @@ package main
 import (
 	"context"
 	"log"
+	"net/http" // FIX 1: Import net/http yang sebelumnya hilang
 	"os"
 	"os/signal"
 	"time"
@@ -16,6 +17,7 @@ import (
 
 	"github.com/joho/godotenv"
 	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v4/middleware" // FIX 2: Import middleware untuk CORS
 	echoSwagger "github.com/swaggo/echo-swagger"
 	_ "backend-tracker/docs"
 )
@@ -46,6 +48,13 @@ func main() {
 	logUsecase := usecase.NewLogUsecase(logRepo, eventBus) // kirim eventBus
 
 	e := echo.New()
+
+	// FIX 2: Pasang CORS agar Frontend React tidak diblokir oleh browser
+	e.Use(middleware.CORSWithConfig(middleware.CORSConfig{
+		AllowOrigins: []string{"*"}, // Mengizinkan semua origin (cocok untuk testing lokal)
+		AllowMethods: []string{echo.GET, echo.POST, echo.PUT, echo.DELETE},
+	}))
+
 	delivery.NewLogHandler(e, logUsecase)
 
 	// Swagger UI
@@ -53,11 +62,12 @@ func main() {
 
 	port := os.Getenv("SERVER_PORT")
 	if port == "" {
-		port = "8081"
+		port = "8081" // FIX 3: Default diubah ke 3000 jika kamu menggunakan mapping 8081:3000 di Docker
 	}
 
 	// Graceful shutdown
 	go func() {
+		log.Printf("🚀 Aplikasi Backend Mengetuk Port %s...", port)
 		if err := e.Start(":" + port); err != nil && err != http.ErrServerClosed {
 			log.Fatalf("shutdown server: %v", err)
 		}
