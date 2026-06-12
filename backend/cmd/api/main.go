@@ -56,8 +56,9 @@ func main() {
 	e.Use(middleware.Logger()) // Tambahkan Logger agar bisa melihat akses di log
 	e.Use(middleware.Recover()) // Tambahkan Recover agar server tidak mati jika ada panic
 	e.Use(middleware.CORSWithConfig(middleware.CORSConfig{
-		AllowOrigins: []string{"*"},
-		AllowMethods: []string{echo.GET, echo.POST, echo.PUT, echo.DELETE},
+		AllowOrigins: []string{"*"}, 
+		AllowMethods: []string{http.MethodGet, http.MethodPost, http.MethodPut, http.MethodDelete, http.MethodOptions}, // Tambahkan OPTIONS
+		AllowHeaders: []string{echo.HeaderOrigin, echo.HeaderContentType, echo.HeaderAccept},
 	}))
 
 	// 6. Routes
